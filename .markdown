@@ -1,0 +1,72 @@
+# 2D 열전도 수치해석 및 격자 민감도 분석
+
+본 프로젝트는 2차원 정상 상태(Steady-State) 및 과도 상태(Transient) 열전도 방정식을 유한차분법(Finite Difference Method, FDM)을 사용하여 수치적으로 해결하고, 수치해의 정확도와 신뢰성을 검증하기 위한 격자 민감도 분석(Grid Sensitivity Analysis)을 수행하는 도구입니다.
+
+---
+
+## 1. 개요 및 지배 방정식
+
+2차원 열전도 현상은 Fourier의 열전도 법칙과 에너지 보존 법칙에 의해 아래와 같은 편미분 방정식(Governing Equation)으로 기술됩니다.
+
+$$\frac{\partial}{\partial x} \left( k \frac{\partial T}{\partial x} \right) + \frac{\partial}{\partial y} \left( k \frac{\partial T}{\partial y} \right) + \dot{q} = \rho c_p \frac{\partial T}{\partial t}$$
+
+여기서 각 기호의 정의는 다음과 같습니다.
+- $T(x, y, t)$: 온도 분포 (Temperature, $\text{K}$ 또는 $^\circ\text{C}$)
+- $k$: 열전도계수 (Thermal Conductivity, $\text{W/m}\cdot\text{K}$)
+- $\dot{q}$: 내부 발열량 (Volumetric Heat Generation, $\text{W/m}^3$)
+- $\rho$: 밀도 (Density, $\text{kg/m}^3$)
+- $c_p$: 비열 (Specific Heat, $\text{J/kg}\cdot\text{K}$)
+
+정상 상태($\partial T / \partial t = 0$) 및 등방성 열전도계수($k = \text{const.}$) 조건하에서 식은 다음과 같은 **포아송 방정식(Poisson's Equation)**으로 단순화됩니다.
+
+$$\frac{\partial^2 T}{\partial x^2} + \frac{\partial^2 T}{\partial y^2} + \frac{\dot{q}}{k} = 0$$
+
+---
+
+## 2. 수치해석 방법론 (Numerical Method)
+
+본 해석에서는 도메인을 사각형 격자망(Orthogonal Structured Grid)으로 이산화하고, 공간 도함수에 대해 **2차 중앙 차분법(2nd-order Central Difference Scheme)**을 적용합니다.
+
+### 이산화 (Discretization)
+
+공간 격자 간격을 $\Delta x, \Delta y$라 할 때, 임의의 내부 격자점 $(i, j)$에서의 대수 방정식은 다음과 같이 유도됩니다.
+
+$$\frac{T_{i+1, j} - 2T_{i, j} + T_{i-1, j}}{(\Delta x)^2} + \frac{T_{i, j+1} - 2T_{i, j} + T_{i, j-1}}{(\Delta y)^2} + \frac{\dot{q}_{i, j}}{k} = 0$$
+
+$\Delta x = \Delta y = h$인 정사각형 격자의 경우, 온도 $T_{i, j}$에 대해 정리하면 다음과 같습니다.
+
+$$T_{i, j} = \frac{T_{i+1, j} + T_{i-1, j} + T_{i, j+1} + T_{i, j-1} + \frac{\dot{q}_{i, j} h^2}{k}}{4}$$
+
+### 수치 솔버 (Iterative Solver)
+
+대규모 선형 연립 방정식을 효율적으로 풀기 위해 다음과 같은 반복법(Iterative Method) 솔버를 제공합니다.
+1. **Jacobi Method**: 이전 반복 단계의 값을 바탕으로 모든 격자점을 동시에 갱신합니다.
+2. **Gauss-Seidel Method**: 계산된 최신 값을 즉시 다음 격자점 계산에 활용하여 수렴 속도를 높입니다.
+3. **Successive Over-Relaxation (SOR)**: 가속 매개변수 $\omega$ ($1 < \omega < 2$)를 도입하여 수렴 속도를 극대화합니다.
+
+---
+
+## 3. 격자 민감도 분석 (Grid Sensitivity Analysis)
+
+수치해석 결과가 격자 크기($h$)에 의존하지 않고 독립적인 참값에 수렴하는지 확인하기 위해 **격자 독립성 평가(Grid Independence Test)**를 수행합니다.
+
+### 평가 지표
+- **특정 관심점에서의 온도 수렴도**: $T(x_c, y_c)$ 값의 격자 크기별 변화 추적
+- **L2 Norm 에러**: 격자가 조밀해짐에 따른 상대 오차의 감소율 분석
+- **GCI (Grid Convergence Index)**: Roache 방법론에 기반하여 수치해의 불확실도 범위를 정량적으로 산정
+
+$$\text{GCI} = \frac{F_s |\epsilon|}{r^p - 1}$$
+
+- $F_s$: 안전 계수 (Safety Factor, 통상 3개 이상의 격자계 분석 시 1.25 사용)
+- $r$: 격자 세분화 비율 (Grid Refinement Ratio, $r = h_{coarse} / h_{fine}$)
+- $p$: 형식적 수렴 차수 (Formal Order of Accuracy)
+
+---
+
+## 4. 경계 조건 설정 (Boundary Conditions)
+
+도메인의 사각 테두리 경계면에는 다음과 같은 물리적 조건들을 유연하게 지정할 수 있습니다.
+
+- **Dirichlet 경계 조건 (제1종)**: 경계면의 온도가 일정하게 유지되는 조건 (예: $T = T_{wall}$)
+- **Neumann 경계 조건 (제2종)**: 경계면을 통한 열유속이 일정한 조건 (예: 단열 조건 $\frac{\partial T}{\partial n} = 0$)
+- **Robin 경계 조건 (제3종)**: 외기와의 대류 열전달이 일정한 조건 ($-k \frac{\partial T}{\partial n} = h_{conv} (T - T_{\infty})$)
